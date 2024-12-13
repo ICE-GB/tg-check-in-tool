@@ -1,0 +1,10 @@
+[package]
+name = "tg-check-in-tool"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+grammers-client = { git = "https://github.com/Lonami/grammers", version = "0.7.0" }
+log = "0.4.22"
+simple_logger = "5.0.0"
+tokio = "1.42.0"
