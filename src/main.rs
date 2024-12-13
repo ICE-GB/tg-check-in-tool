@@ -15,6 +15,8 @@
 //!
 use std::io::{BufRead, Write};
 use std::{env, io};
+use std::path::{Path, PathBuf};
+use std::fs;
 
 use grammers_client::{Client, Config, SignInError};
 use simple_logger::SimpleLogger;
@@ -23,8 +25,6 @@ use tokio::runtime;
 use grammers_client::session::Session;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-const SESSION_FILE: &str = "check-in.session";
 
 async fn async_main() -> Result<()> {
     SimpleLogger::new()
@@ -36,10 +36,11 @@ async fn async_main() -> Result<()> {
     let api_hash = env::var("TG_HASH").expect("TG_HASH invalid");
     let chat_name = env::args().nth(1).expect("chat name missing");
     let message = env::args().nth(2).expect("message missing");
+    let session_file = app_data_home().join("check-in.session");
 
     println!("Connecting to Telegram...");
     let client = Client::connect(Config {
-        session: Session::load_file_or_create(SESSION_FILE)?,
+        session: Session::load_file_or_create(&session_file)?,
         api_id,
         api_hash: api_hash.clone(),
         params: Default::default(),
@@ -72,7 +73,7 @@ async fn async_main() -> Result<()> {
             Err(e) => panic!("{}", e),
         };
         println!("Signed in!");
-        match client.session().save_to_file(SESSION_FILE) {
+        match client.session().save_to_file(&session_file) {
             Ok(_) => {}
             Err(e) => {
                 println!("NOTE: failed to save the session, will sign out when done: {e}");
@@ -115,4 +116,29 @@ fn prompt(message: &str) -> Result<String> {
     let mut line = String::new();
     stdin.read_line(&mut line)?;
     Ok(line)
+}
+
+fn app_data_home() -> PathBuf {
+    let app_data_home = xdg_data_home().join("tg-check-in-tool");
+    fs::create_dir_all(&app_data_home).unwrap_or_else(|why| {
+        println!("! {:?}", why.kind());
+    });
+    app_data_home
+}
+
+#[cfg(not(target_os = "windows"))]
+fn xdg_data_home() -> PathBuf {
+    match env::var("XDG_DATA_HOME") {
+        Ok(data_home) => Path::new(&data_home).to_path_buf(),
+        _ => {
+            let home = env::var("HOME").unwrap();
+            Path::new(&home).join(".local").join("share").to_path_buf()
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn xdg_data_home() -> PathBuf {
+    let data_home = env::var("APPDATA").unwrap();
+    Path::new(&data_home).to_path_buf()
 }
